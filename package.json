@@ -2,15 +2,25 @@
   "name": "statepulse",
   "version": "0.0.1",
   "description": "A periodic state fetching and caching library",
+  "keywords": [
+    "state",
+    "polling",
+    "cache",
+    "background-task",
+    "scheduler",
+    "cron",
+    "typescript",
+    "resilient"
+  ],
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
+      "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
-      "require": "./dist/index.cjs",
-      "types": "./dist/index.d.ts"
+      "require": "./dist/index.cjs"
     }
   },
   "files": [
@@ -20,7 +30,7 @@
     "node": ">=18.0.0"
   },
   "scripts": {
-    "build": "tsup src/index.ts --format cjs,esm --dts --clean --minify",
+    "build": "tsup",
     "test": "eslint . && npm run typecheck && tsc -p tsconfig.test.json && node --test dist-test/tests/unit/*.test.js dist-test/tests/e2e/*.test.js",
     "test:unit": "tsc -p tsconfig.test.json && node --test dist-test/tests/unit/*.test.js",
     "test:e2e": "tsc -p tsconfig.test.json && node --test dist-test/tests/e2e/*.test.js",
@@ -28,7 +38,7 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit"
   },
-  "license": "ISC",
+  "license": "MIT",
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/node": "^25.9.1",
