@@ -1,0 +1,39 @@
+{
+  "name": "statepulse",
+  "version": "0.0.1",
+  "description": "A periodic state fetching and caching library",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts --clean --minify",
+    "test": "eslint . && npm run typecheck && tsc -p tsconfig.test.json && node --test dist-test/tests/unit/*.test.js dist-test/tests/e2e/*.test.js",
+    "test:unit": "tsc -p tsconfig.test.json && node --test dist-test/tests/unit/*.test.js",
+    "test:e2e": "tsc -p tsconfig.test.json && node --test dist-test/tests/e2e/*.test.js",
+    "prepublishOnly": "npm run build",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
+  },
+  "license": "ISC",
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^25.9.1",
+    "tsup": "^8.0.2",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.60.0"
+  }
+}
