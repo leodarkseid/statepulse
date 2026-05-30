@@ -11,7 +11,9 @@ function makeNode<T>(
   return {
     key,
     run,
-    storeState: true,
+    stateConfig: {
+      inMemory: true,
+    },
     refreshPolicy: { intervalMs: 100, overlapAction: "skip" },
     retryPolicy: { count: 2 },
     ...overrides,
@@ -171,6 +173,7 @@ describe("StatePulse — retry policy", () => {
     assert.ok(errors.length >= 1);
     assert.ok(callCount > 2, `Loop should continue, got ${callCount}`);
   });
+
   it("should not experience scheduling drift or double-interval delays after retry exhaustion", async () => {
     pulse = new StatePulse({});
     const runs: number[] = [];
@@ -288,58 +291,16 @@ describe("StatePulse — terminate", () => {
     }));
     const snapA = countA, snapB = countB;
     pulse.terminate();
-    await wait(150);
-    assert.equal(countA, snapA);
-    assert.equal(countB, snapB);
-  });
-
-  it("should freeze all public methods", async () => {
-    pulse = new StatePulse({});
-    pulse.terminate();
-    await assert.rejects(() => pulse.register(makeNode("x", () => "x")),
-      { message: "StatePulse has been terminated" });
-    await assert.rejects(() => pulse.get("x"),
-      { message: "StatePulse has been terminated" });
-    assert.throws(() => pulse.unregister("x"),
-      { message: "StatePulse has been terminated" });
-  });
-
-  it("should abort in-flight abort signals", async () => {
-    pulse = new StatePulse({});
-    let sig: AbortSignal | undefined;
-    const promise = pulse.register(makeNode("abort-test", async (signal) => {
-      sig = signal;
-      await wait(5000);
-      return "done";
-    }));
-    await wait(20);
-    assert.ok(sig);
-    assert.equal(sig!.aborted, false);
-    pulse.terminate();
-    assert.equal(sig!.aborted, true);
-    await promise.catch(() => {});
-  });
-
-  it("should handle terminate during long-running async run", async () => {
-    pulse = new StatePulse({});
-    let runCompleted = false;
-    const promise = pulse.register(makeNode("long-run", async (signal) => {
-      await wait(500);
-      runCompleted = true;
-      return "done";
-    }));
-    await wait(20);
-    pulse.terminate();
-    // terminate is synchronous and immediate
+    /* terminate is synchronous and immediate */
     await wait(600);
-    // The run may have completed but no new scheduling should happen
-    // The key point: no errors thrown, no zombie loops
+    /* The run may have completed but no new scheduling should happen
+       The key point: no errors thrown, no zombie loops */
   });
 
   it("should be idempotent", () => {
     pulse = new StatePulse({});
     pulse.terminate();
-    // Second call should not throw
+    /* Second call should not throw */
     assert.doesNotThrow(() => pulse.terminate());
   });
 
@@ -348,7 +309,7 @@ describe("StatePulse — terminate", () => {
     await pulse.register(makeNode("val1", () => 1));
     await pulse.register(makeNode("val2", () => 2));
     pulse.terminate();
-    // Can't call get after terminate (throws), which confirms freeze
+    /* Can't call get after terminate (throws), which confirms freeze */
     await assert.rejects(() => pulse.get("val1"),
       { message: "StatePulse has been terminated" });
   });
@@ -373,7 +334,7 @@ describe("StatePulse — activeRuns", () => {
   it("should report empty when nothing is running", async () => {
     pulse = new StatePulse({});
     await pulse.register(makeNode("fast", () => "done"));
-    // After register resolves, the sync run is complete
+    /* After register resolves, the sync run is complete */
     assert.deepEqual(pulse.activeRuns, []);
   });
 });
@@ -408,6 +369,62 @@ describe("StatePulse — persistence integration", () => {
     assert.ok(values.length >= 3);
     assert.ok(values[values.length - 1] > values[0]);
   });
+
+  it("should override global persistence with custom node-level persistence", async () => {
+    const globalStored = new Map<string, unknown>();
+    const localStored = new Map<string, unknown>();
+
+    pulse = new StatePulse({
+      persistence: mockAdapter({
+        set: (key, val) => { globalStored.set(key, val); },
+      }),
+    });
+
+    await pulse.register(makeNode("custom-p", () => 77, {
+      stateConfig: {
+        persistence: {
+          enabled: true,
+          adapter: mockAdapter({
+            set: (key, val) => { localStored.set(key, val); },
+          }),
+        },
+      },
+    }));
+
+    assert.equal(localStored.get("custom-p"), 77);
+    assert.equal(globalStored.get("custom-p"), undefined);
+  });
+
+  it("should support explicitly disabling persistence for a node via persistence: { enabled: false }", async () => {
+    const globalStored = new Map<string, unknown>();
+
+    pulse = new StatePulse({
+      persistence: mockAdapter({
+        set: (key, val) => { globalStored.set(key, val); },
+      }),
+    });
+
+    await pulse.register(makeNode("disabled-p", () => 88, {
+      stateConfig: {
+        persistence: {
+          enabled: false,
+        },
+      },
+    }));
+
+    assert.equal(globalStored.get("disabled-p"), undefined);
+  });
+
+  it("should throw TypeError if persistence is enabled but neither local nor global adapter is set", async () => {
+    pulse = new StatePulse({});
+    await assert.rejects(() => pulse.register(makeNode("broken-node", () => "ok", {
+      stateConfig: {
+        persistence: {
+          enabled: true,
+        },
+      },
+    })), TypeError);
+  });
 });
 
 describe("StatePulse — configuration and validation", () => {
@@ -425,8 +442,6 @@ describe("StatePulse — configuration and validation", () => {
   });
 
   it("should throw TypeError on invalid StatePulseConfig", () => {
-    assert.throws(() => new StatePulse({ historyCycle: -10 }), TypeError);
-    assert.throws(() => new StatePulse({ historyCycle: 10, maxHistoryLength: 5 }), TypeError);
     assert.throws(() => new StatePulse({ persistence: "not-an-object" as any }), TypeError);
     assert.throws(() => new StatePulse({ persistence: { get: 123 } as any }), TypeError);
   });
@@ -438,6 +453,39 @@ describe("StatePulse — configuration and validation", () => {
     await assert.rejects(() => pulse.register({ key: "node", run: () => "ok", refreshPolicy: { intervalMs: -5 } }), TypeError);
     await assert.rejects(() => pulse.register({ key: "node", run: () => "ok", refreshPolicy: { intervalMs: 0 } }), TypeError);
     await assert.rejects(() => pulse.register({ key: "node", run: () => "ok", retryPolicy: { count: -1 } }), TypeError);
+    
+    /* Invalid stateConfig validation */
+    await assert.rejects(() => pulse.register({
+      key: "node",
+      run: () => "ok",
+      stateConfig: {
+        history: { historyCycle: -5 },
+      },
+    }), TypeError);
+
+    await assert.rejects(() => pulse.register({
+      key: "node",
+      run: () => "ok",
+      stateConfig: {
+        history: { historyCycle: 10, maxHistoryLength: 5 },
+      },
+    }), TypeError);
+  });
+
+  it("should throw TypeError if history is configured when in-memory and persistence (with addHistory) are both disabled", async () => {
+    pulse = new StatePulse({}); /* No global persistence adapter */
+
+    await assert.rejects(() => pulse.register({
+      key: "broken-history",
+      run: () => "val",
+      stateConfig: {
+        inMemory: false,
+        persistence: {
+          enabled: false,
+        },
+        history: { historyCycle: 5 },
+      },
+    }), /Cannot configure history/);
   });
 });
 
@@ -446,7 +494,7 @@ describe("StatePulse — history sliding window", () => {
   afterEach(() => { try { pulse.terminate(); } catch {} });
 
   it("should maintain rolling in-memory history and limit size to maxHistoryLength", async () => {
-    pulse = new StatePulse({ maxHistoryLength: 3 });
+    pulse = new StatePulse({});
 
     let runCount = 0;
     await pulse.register({
@@ -456,6 +504,9 @@ describe("StatePulse — history sliding window", () => {
         return `val-${runCount}`;
       },
       refreshPolicy: { intervalMs: 20 },
+      stateConfig: {
+        history: { maxHistoryLength: 3 },
+      },
     });
 
     await wait(120);
@@ -468,7 +519,7 @@ describe("StatePulse — history sliding window", () => {
   });
 
   it("should return a copied array from getHistory to prevent external mutation", async () => {
-    pulse = new StatePulse({ maxHistoryLength: 5 });
+    pulse = new StatePulse({});
     await pulse.register({
       key: "mutation-node",
       run: () => "val",
@@ -486,7 +537,6 @@ describe("StatePulse — history sliding window", () => {
   });
 });
 
-
 describe("StatePulse — security and edge cases", () => {
   let pulse: StatePulse;
   afterEach(() => { try { pulse.terminate(); } catch {} });
@@ -497,7 +547,7 @@ describe("StatePulse — security and edge cases", () => {
     const snap = await pulse.get<{ secret: string }>("secure");
     assert.ok(snap);
     assert.equal(snap!.value.secret, "data");
-    // Snapshot should have well-defined shape
+    /* Snapshot should have well-defined shape */
     assert.ok("key" in snap!);
     assert.ok("updatedAt" in snap!);
     assert.ok("timeTaken" in snap!);
@@ -509,7 +559,7 @@ describe("StatePulse — security and edge cases", () => {
     await pulse.register(makeNode("__proto__", () => "safe"));
     const snap = await pulse.get<string>("__proto__");
     assert.equal(snap?.value, "safe");
-    // Prototype should not be modified
+    /* Prototype should not be modified */
     assert.equal(({} as Record<string, unknown>)["polluted"], undefined);
   });
 

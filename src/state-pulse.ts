@@ -4,6 +4,7 @@ import type {
   StatePulseConfig,
   RegisterNodeConfig,
   StateSnapshot,
+  PersistenceAdapter,
 } from "./types.js";
 import { runAndTime } from "./utils.js";
 import {
@@ -21,21 +22,17 @@ const pulseRegistry = new FinalizationRegistry<{ signal: NodeJS.Signals; handler
  * Main periodic background polling and state cache engine.
  */
 export class StatePulse {
-  private readonly intervalMs = 5 * 60 * 1000;
   readonly #state: StateManager;
   readonly #nodes = new Map<string, NodeEntry<unknown>>();
   #terminated = false;
+  readonly #globalPersistence?: PersistenceAdapter | null;
 
   readonly #signalHandlers = new Map<NodeJS.Signals, () => void>();
 
   constructor(config?: Partial<StatePulseConfig>) {
     const validated = validateAndFillPulseConfig(config);
-    this.#state = new StateManager(
-      validated.persistence,
-      validated.historyCycle,
-      validated.keepHistoryAfterSave ?? false,
-      validated.maxHistoryLength ?? 100,
-    );
+    this.#globalPersistence = validated.persistence;
+    this.#state = new StateManager(validated.persistence);
 
     this.#enableGracefulShutdown(validated.enableSignalHandling ?? true);
   }
@@ -68,7 +65,7 @@ export class StatePulse {
    */
   terminate(): void {
     this.#terminated = true;
-
+ 
     pulseRegistry.unregister(this);
 
     for (const [signal, handler] of this.#signalHandlers) {
@@ -91,7 +88,7 @@ export class StatePulse {
     if (this.#terminated) {
       throw new Error("StatePulse has been terminated");
     }
-    const validated = validateAndFillNode(node);
+    const validated = validateAndFillNode(node, this.#globalPersistence);
     if (this.#nodes.has(validated.key)) {
       throw new Error(`Node with key "${validated.key}" is already registered`);
     }
@@ -111,7 +108,13 @@ export class StatePulse {
     if (this.#terminated) {
       throw new Error("StatePulse has been terminated");
     }
-    return await this.#state.fetch<T>(key);
+    const entry = this.#nodes.get(key);
+    const activeAdapter = entry
+      ? (entry.node.stateConfig.persistence.enabled
+        ? (entry.node.stateConfig.persistence.adapter ?? this.#globalPersistence)
+        : null)
+      : undefined;
+    return await this.#state.fetch<T>(key, activeAdapter);
   }
 
   /**
@@ -166,7 +169,7 @@ export class StatePulse {
     const execution = await runAndTime(() => entry.node.run(entry.signal));
     entry.markIdle();
 
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+    /* eslint-disable-next-line @typescript-eslint/no-unnecessary-condition */
     if (entry.stopped) return;
 
     if (!execution.ok) {
@@ -189,7 +192,7 @@ export class StatePulse {
         this.#state.store(
           snapshot,
           entry.node.refreshPolicy.intervalMs,
-          entry.node.storeState,
+          entry.node.stateConfig,
         ),
       );
 
@@ -197,7 +200,7 @@ export class StatePulse {
         this.#log(entry.node.logErrors, stateUpdate.error);
       }
 
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+      /* eslint-disable-next-line @typescript-eslint/no-unnecessary-condition */
       if (entry.stopped) return;
     }
 

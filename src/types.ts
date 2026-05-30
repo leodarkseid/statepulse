@@ -5,23 +5,7 @@ export interface StatePulseConfig {
   /**
    * Optional custom persistence adapter to store node values and history externally.
    */
-  persistence?: PersistenceAdapter;
-
-  /**
-   * Number of execution cycles before flushing accumulated in-memory history to the persistence adapter.
-   * If null, history is never flushed to persistence.
-   */
-  historyCycle?: number | null;
-
-  /**
-   * Whether to retain snapshots in the local in-memory history queue after flushing to persistence.
-   */
-  keepHistoryAfterSave?: boolean;
-
-  /**
-   * Strict upper bound for the in-memory history array to prevent memory leaks or OOM.
-   */
-  maxHistoryLength?: number;
+  persistence?: PersistenceAdapter | null;
 
   /**
    * Whether to automatically attach SIGINT/SIGTERM listener handlers to the global process object.
@@ -50,12 +34,64 @@ export interface PersistenceAdapter {
 }
 
 /**
+ * Node-specific persistence configuration options.
+ */
+export interface NodePersistenceConfig {
+  /**
+   * Whether to enable persistence for this node.
+   * If true, requires either a local adapter to be defined or a global persistence adapter to be set.
+   * If false, explicitly disables persistence for this node.
+   */
+  enabled?: boolean;
+
+  /**
+   * Optional node-specific persistence adapter to override the global one.
+   */
+  adapter?: PersistenceAdapter | null;
+}
+
+/**
+ * Node-specific configuration block for state storage, memory, and persistence options.
+ */
+export interface NodeStateConfig {
+  /**
+   * Whether to save state snapshots in the local in-memory store. Defaults to true.
+   */
+  inMemory?: boolean;
+
+  /**
+   * Node-specific persistence configuration block.
+   */
+  persistence?: NodePersistenceConfig;
+
+  /**
+   * Node-specific history configurations.
+   */
+  history?: {
+    /**
+     * Number of execution cycles before flushing accumulated history to persistence.
+     * If null, history is never flushed to persistence.
+     */
+    historyCycle?: number | null;
+
+    /**
+     * Whether to retain snapshots in the local in-memory history queue after flushing to persistence.
+     */
+    keepHistoryAfterSave?: boolean;
+
+    /**
+     * Strict upper bound for the in-memory history array to prevent memory leaks or OOM. Defaults to 100.
+     */
+    maxHistoryLength?: number;
+  };
+}
+
+/**
  * Internal fully-validated representation of a State Node.
  */
 export interface StateNode<T> {
   key: string;
   run: (signal: AbortSignal) => T | Promise<T>;
-  storeState: boolean;
   logErrors: boolean | ((error: string) => void);
   refreshPolicy: {
     intervalMs: number;
@@ -63,6 +99,10 @@ export interface StateNode<T> {
   };
   retryPolicy: {
     count: number;
+  };
+  stateConfig: Required<Omit<NodeStateConfig, "persistence" | "history">> & {
+    persistence: Required<NodePersistenceConfig>;
+    history: Required<NonNullable<NodeStateConfig["history"]>>;
   };
 }
 
@@ -79,11 +119,6 @@ export interface RegisterNodeConfig<T> {
    * The execution function called periodically. Receives an AbortSignal to handle cancellations.
    */
   run: (signal: AbortSignal) => T | Promise<T>;
-
-  /**
-   * Whether to save state snapshots in the local in-memory store. Defaults to true.
-   */
-  storeState?: boolean;
 
   /**
    * How errors should be handled. Can be true (logs to stderr), false (ignores), or a custom callback function.
@@ -114,6 +149,11 @@ export interface RegisterNodeConfig<T> {
      */
     count?: number;
   };
+
+  /**
+   * State and persistence options for this node.
+   */
+  stateConfig?: NodeStateConfig;
 }
 
 /**

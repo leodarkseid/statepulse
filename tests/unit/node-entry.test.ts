@@ -7,10 +7,21 @@ function makeNode(overrides: Partial<StateNode<string>> = {}): StateNode<string>
   return {
     key: "test-key",
     run: () => "value",
-    storeState: true,
     logErrors: false,
     refreshPolicy: { intervalMs: 1000, overlapAction: "skip" },
     retryPolicy: { count: 3 },
+    stateConfig: {
+      inMemory: true,
+      persistence: {
+        enabled: false,
+        adapter: null,
+      },
+      history: {
+        historyCycle: null,
+        keepHistoryAfterSave: false,
+        maxHistoryLength: 100,
+      },
+    },
     ...overrides,
   };
 }

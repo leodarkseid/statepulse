@@ -35,7 +35,11 @@ describe("StateManager", () => {
 
     it("should store and fetch a snapshot when storeState is true", async () => {
       const snap = makeSnapshot("usd", 750);
-      await manager.store(snap, 1000, true);
+      await manager.store(snap, 1000, {
+        inMemory: true,
+        persistence: { enabled: false, adapter: null },
+        history: { historyCycle: null, keepHistoryAfterSave: false, maxHistoryLength: 100 },
+      });
 
       const fetched = await manager.fetch<number>("usd");
       assert.deepEqual(fetched?.value, 750);
@@ -44,15 +48,27 @@ describe("StateManager", () => {
 
     it("should NOT store in memory when storeState is false", async () => {
       const snap = makeSnapshot("usd", 750);
-      await manager.store(snap, 1000, false);
+      await manager.store(snap, 1000, {
+        inMemory: false,
+        persistence: { enabled: false, adapter: null },
+        history: { historyCycle: null, keepHistoryAfterSave: false, maxHistoryLength: 100 },
+      });
 
       const fetched = await manager.fetch("usd");
       assert.equal(fetched, null);
     });
 
     it("should overwrite existing snapshot for same key", async () => {
-      await manager.store(makeSnapshot("usd", 750), 1000, true);
-      await manager.store(makeSnapshot("usd", 800), 1000, true);
+      await manager.store(makeSnapshot("usd", 750), 1000, {
+        inMemory: true,
+        persistence: { enabled: false, adapter: null },
+        history: { historyCycle: null, keepHistoryAfterSave: false, maxHistoryLength: 100 },
+      });
+      await manager.store(makeSnapshot("usd", 800), 1000, {
+        inMemory: true,
+        persistence: { enabled: false, adapter: null },
+        history: { historyCycle: null, keepHistoryAfterSave: false, maxHistoryLength: 100 },
+      });
 
       const fetched = await manager.fetch<number>("usd");
       assert.equal(fetched?.value, 800);
@@ -62,7 +78,11 @@ describe("StateManager", () => {
   describe("delete", () => {
     it("should remove snapshot for a key", async () => {
       const manager = new StateManager();
-      await manager.store(makeSnapshot("usd", 750), 1000, true);
+      await manager.store(makeSnapshot("usd", 750), 1000, {
+        inMemory: true,
+        persistence: { enabled: false, adapter: null },
+        history: { historyCycle: null, keepHistoryAfterSave: false, maxHistoryLength: 100 },
+      });
 
       manager.delete("usd");
       const result = await manager.fetch("usd");
@@ -78,8 +98,16 @@ describe("StateManager", () => {
   describe("clear", () => {
     it("should remove all snapshots", async () => {
       const manager = new StateManager();
-      await manager.store(makeSnapshot("usd", 750), 1000, true);
-      await manager.store(makeSnapshot("eur", 900), 1000, true);
+      await manager.store(makeSnapshot("usd", 750), 1000, {
+        inMemory: true,
+        persistence: { enabled: false, adapter: null },
+        history: { historyCycle: null, keepHistoryAfterSave: false, maxHistoryLength: 100 },
+      });
+      await manager.store(makeSnapshot("eur", 900), 1000, {
+        inMemory: true,
+        persistence: { enabled: false, adapter: null },
+        history: { historyCycle: null, keepHistoryAfterSave: false, maxHistoryLength: 100 },
+      });
 
       manager.clear();
 
@@ -99,12 +127,16 @@ describe("StateManager", () => {
       });
 
       const manager = new StateManager(adapter);
-      await manager.store(makeSnapshot("usd", 750), 1000);
+      await manager.store(makeSnapshot("usd", 750), 1000, {
+        inMemory: false,
+        persistence: { enabled: true, adapter: null },
+        history: { historyCycle: null, keepHistoryAfterSave: false, maxHistoryLength: 100 },
+      });
 
       assert.equal(setCalls.length, 1);
       assert.equal(setCalls[0].key, "usd");
       assert.equal(setCalls[0].value, 750);
-      // TTL should be 1000 * 1.2 = 1200
+      /* TTL should be 1000 * 1.2 = 1200 */
       assert.equal(setCalls[0].ttl, 1200);
     });
 
@@ -124,7 +156,11 @@ describe("StateManager", () => {
       });
 
       const manager = new StateManager(adapter);
-      await manager.store(makeSnapshot("usd", 750), 1000, true);
+      await manager.store(makeSnapshot("usd", 750), 1000, {
+        inMemory: true,
+        persistence: { enabled: true, adapter: null },
+        history: { historyCycle: null, keepHistoryAfterSave: false, maxHistoryLength: 100 },
+      });
 
       const result = await manager.fetch<number>("usd");
       assert.equal(result?.value, 750);
@@ -141,13 +177,23 @@ describe("StateManager", () => {
         },
       });
 
-      const manager = new StateManager(adapter, 3, false);
+      const manager = new StateManager(adapter);
 
-      await manager.store(makeSnapshot("usd", 1), 1000);
-      await manager.store(makeSnapshot("usd", 2), 1000);
+      const config = {
+        inMemory: false,
+        persistence: { enabled: true, adapter: null },
+        history: {
+          historyCycle: 3,
+          keepHistoryAfterSave: false,
+          maxHistoryLength: 100,
+        },
+      };
+
+      await manager.store(makeSnapshot("usd", 1), 1000, config);
+      await manager.store(makeSnapshot("usd", 2), 1000, config);
       assert.equal(historyFlushes.length, 0);
 
-      await manager.store(makeSnapshot("usd", 3), 1000);
+      await manager.store(makeSnapshot("usd", 3), 1000, config);
       assert.equal(historyFlushes.length, 1);
       assert.equal(historyFlushes[0].entries.length, 3);
     });
@@ -158,15 +204,25 @@ describe("StateManager", () => {
         addHistory: (_key, entries) => { historyFlushes.push([...entries]); },
       });
 
-      const manager = new StateManager(adapter, 2, false);
+      const manager = new StateManager(adapter);
 
-      await manager.store(makeSnapshot("usd", 1), 1000);
-      await manager.store(makeSnapshot("usd", 2), 1000);
+      const config = {
+        inMemory: false,
+        persistence: { enabled: true, adapter: null },
+        history: {
+          historyCycle: 2,
+          keepHistoryAfterSave: false,
+          maxHistoryLength: 100,
+        },
+      };
+
+      await manager.store(makeSnapshot("usd", 1), 1000, config);
+      await manager.store(makeSnapshot("usd", 2), 1000, config);
       assert.equal(historyFlushes.length, 1);
 
-      // Next cycle starts fresh
-      await manager.store(makeSnapshot("usd", 3), 1000);
-      await manager.store(makeSnapshot("usd", 4), 1000);
+      /* Next cycle starts fresh */
+      await manager.store(makeSnapshot("usd", 3), 1000, config);
+      await manager.store(makeSnapshot("usd", 4), 1000, config);
       assert.equal(historyFlushes.length, 2);
       assert.equal(historyFlushes[1].length, 2);
     });
@@ -177,10 +233,20 @@ describe("StateManager", () => {
         addHistory: (_key, entries) => { historyFlushes.push([...entries]); },
       });
 
-      const manager = new StateManager(adapter, 2, true, 3);
+      const manager = new StateManager(adapter);
 
-      await manager.store(makeSnapshot("usd", 1), 1000);
-      await manager.store(makeSnapshot("usd", 2), 1000);
+      const config = {
+        inMemory: false,
+        persistence: { enabled: true, adapter: null },
+        history: {
+          historyCycle: 2,
+          keepHistoryAfterSave: true,
+          maxHistoryLength: 3,
+        },
+      };
+
+      await manager.store(makeSnapshot("usd", 1), 1000, config);
+      await manager.store(makeSnapshot("usd", 2), 1000, config);
       
       assert.equal(historyFlushes.length, 1);
       const history1 = manager.getHistory<number>("usd");
@@ -188,16 +254,41 @@ describe("StateManager", () => {
       assert.equal(history1[0].value, 1);
       assert.equal(history1[1].value, 2);
 
-      await manager.store(makeSnapshot("usd", 3), 1000);
+      await manager.store(makeSnapshot("usd", 3), 1000, config);
       const history2 = manager.getHistory<number>("usd");
       assert.equal(history2.length, 3);
 
-      await manager.store(makeSnapshot("usd", 4), 1000);
+      await manager.store(makeSnapshot("usd", 4), 1000, config);
       const history3 = manager.getHistory<number>("usd");
       assert.equal(history3.length, 3);
       assert.equal(history3[0].value, 2);
       assert.equal(history3[1].value, 3);
       assert.equal(history3[2].value, 4);
+    });
+
+    it("should keep history in memory only if adapter does not implement addHistory", async () => {
+      /* Adapter without addHistory */
+      const adapter = mockAdapter({});
+      const manager = new StateManager(adapter);
+
+      const config = {
+        inMemory: true,
+        persistence: { enabled: true, adapter: null },
+        history: {
+          historyCycle: 2,
+          keepHistoryAfterSave: false,
+          maxHistoryLength: 5,
+        },
+      };
+
+      await manager.store(makeSnapshot("usd", 1), 1000, config);
+      await manager.store(makeSnapshot("usd", 2), 1000, config);
+
+      const history = manager.getHistory<number>("usd");
+      /* Since adapter lacks addHistory, it stays in memory and doesn't flush/clear */
+      assert.equal(history.length, 2);
+      assert.equal(history[0].value, 1);
+      assert.equal(history[1].value, 2);
     });
   });
 });
