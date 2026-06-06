@@ -61,7 +61,7 @@ export class StateManager {
       : null;
 
     if (activeAdapter) {
-      await activeAdapter.set(snapshot.key, snapshot.value, intervalMs);
+      await activeAdapter.set(snapshot.key, snapshot, intervalMs);
     }
 
     let queue = this.#snapshotsArray.get(snapshot.key);
