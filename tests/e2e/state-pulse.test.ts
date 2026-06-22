@@ -271,7 +271,7 @@ describe("StatePulse — unregister and state clearing", () => {
       }),
     });
     await pulse.register(makeNode("p-clear", () => 42));
-    assert.equal(stored.get("p-clear"), 42);
+    assert.equal((stored.get("p-clear") as any).value, 42);
     pulse.unregister("p-clear");
     assert.equal(await pulse.get("p-clear"), null);
   });
@@ -351,7 +351,7 @@ describe("StatePulse — persistence integration", () => {
       }),
     });
     await pulse.register(makeNode("persisted", () => 42));
-    assert.equal(stored.get("persisted"), 42);
+    assert.equal((stored.get("persisted") as any).value, 42);
   });
 
   it("should update persistence on subsequent polls", async () => {
@@ -359,7 +359,7 @@ describe("StatePulse — persistence integration", () => {
     let counter = 0;
     pulse = new StatePulse({
       persistence: mockAdapter({
-        set: (_key, value) => { values.push(value as number); },
+        set: (_key, value) => { values.push((value as any).value as number); },
       }),
     });
     await pulse.register(makeNode("updating-p", () => { counter++; return counter; }, {
@@ -391,7 +391,7 @@ describe("StatePulse — persistence integration", () => {
       },
     }));
 
-    assert.equal(localStored.get("custom-p"), 77);
+    assert.equal((localStored.get("custom-p") as any).value, 77);
     assert.equal(globalStored.get("custom-p"), undefined);
   });
 

@@ -135,7 +135,7 @@ describe("StateManager", () => {
 
       assert.equal(setCalls.length, 1);
       assert.equal(setCalls[0].key, "usd");
-      assert.equal(setCalls[0].value, 750);
+      assert.equal((setCalls[0].value as any).value, 750);
       /* TTL should be 1000 * 1.2 = 1200 */
       assert.equal(setCalls[0].ttl, 1200);
     });
