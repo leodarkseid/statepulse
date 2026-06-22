@@ -1,6 +1,6 @@
 {
   "name": "statepulse",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "A periodic state fetching and caching library",
   "keywords": [
     "state",
