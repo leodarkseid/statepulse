@@ -1,25 +1,28 @@
 <div align="center">
   <h1>StatePulse ⚡</h1>
   <p><strong>Run any async task on a heartbeat. Capture every result. Never miss a pulse.</strong></p>
-  <p><i>From polling remote APIs to calculating live metrics, syncing edge state to reading sensor data — StatePulse orchestrates it all with surgical precision.</i></p>
+  <p><i>From polling remote APIs to calculating live metrics, syncing edge state, to reading sensor data , StatePulse orchestrates it all with surgical precision.</i></p>
 </div>
 
 ---
 
 StatePulse is a zero-dependency periodic execution and state management engine. Define a task. Give it an interval. StatePulse takes care of everything else, retrying on failure, caching the result, respecting overlap boundaries, persisting history, and tearing down cleanly when the process exits.
 
-Run it in a Node.js server, a Deno edge function, a frontend, a browser worker, or an embedded runtime. StatePulse doesn't care where it runs — it just runs, reliably.
+Run it in a Node.js server, a Deno edge function, a frontend, a browser worker, or an embedded runtime. StatePulse doesn't care where it runs, it just runs, reliably!.
 
 ## ✨ Why StatePulse?
 
 There is no other library that combines background execution control, automatic state retention, and pluggable persistence into one coherent, dependency-free primitive.
 
 - ⚡ **Absolute Execution Control**: Stop wrestling with `setInterval` drifts. Define exact polling intervals, robust retry limits, and smart overlap boundaries (skip vs. concurrent).
+- ⚙️ **Truly Task-Agnostic**: From synchronous calculations and long-running I/O operations to fire-and-forget background jobs. If it can execute, StatePulse can orchestrate it, even if it doesn't return state.
 - 🪶 **Featherweight & Zero-Dependency**: No bloat, no conflicts. A minuscule footprint that's equally at home in a heavily constrained IoT device as it is in a massive cloud fleet.
-- 💾 **State That Survives**: Instantly plug in Redis, Postgres, or any key-value store to persist state across process restarts—or keep it strictly lightning-fast in-memory.
+- 💾 **State That Survives**: Instantly plug in Redis, Postgres, or any key-value store to persist state across process restarts or keep it strictly lightning-fast in-memory.
 - 🛡️ **Bulletproof Memory Management**: Built for services that never sleep. Bounded history buffers and automatic eviction mean zero memory leaks and no OOM crashes.
-- 🛑 **Graceful By Default**: Native `AbortSignal` propagation ensures cleanly aborted network requests and safe teardowns the moment an exit signal is fired.
-- 🔌 **Run It Anywhere**: Drop it into NestJS, Fastify,NextJs, React,  Express, or use it raw. Node.js, Deno, Bun, or the browser, it just works.
+- ⏱️ **Built-in Telemetry**: Every state snapshot automatically includes an unintrusive performance breakdown (like execution `timeTaken`) so you can monitor task health without heavy profilers.
+- 🚦 **Resilient Fault Tolerance**: Exceptions won't crash the engine. Execution faults and thrown errors are seamlessly absorbed and surfaced as normal state updates, keeping your application totally bulletproof.
+- 🛑 **Graceful By Default**: Native `AbortSignal` propagation ensures cleanly aborted in-flight tasks and safe teardowns the moment an exit signal is fired.
+- 🔌 **Run It Anywhere**: Drop it into NestJS, Fastify, Next.js, React, Express, or use it raw. Node.js, Deno, Bun, or the browser, it just works.
 
 ---
 
@@ -85,15 +88,15 @@ console.log(`History records available: ${history.length}`);
 
 Create **one** `StatePulse` instance and register all your polling tasks on it using `.register()`. Each registered node runs its own independent background loop with its own interval, retry policy, and history buffer.
 
-**Do not** create a new `StatePulse` instance per task — the centralized orchestrator is highly optimized to handle hundreds of nodes simultaneously without wasting resources.
+**Do not** create a new `StatePulse` instance per task, the centralized orchestrator is highly optimized to efficiently handle hundreds of nodes simultaneously.
 
 ```typescript
-// ✅ Correct — single instance, multiple nodes
+// ✅ Correct  single instance, multiple nodes
 const pulse = new StatePulse();
 await pulse.register({ key: "exchange-rate", run: fetchExchangeRates, refreshPolicy: { intervalMs: 10000 } });
 await pulse.register({ key: "db-health", run: pingDatabase, refreshPolicy: { intervalMs: 60000 } });
 
-// ❌ Wrong — wasteful, no benefit
+// ❌ Wrong wasteful, no benefit
 const pricePulse = new StatePulse();
 const healthPulse = new StatePulse();
 ```
