@@ -91,7 +91,7 @@ export interface NodeStateConfig {
  */
 export interface StateNode<T> {
   key: string;
-  run: (signal: AbortSignal) => T | Promise<T>;
+  run: (signal?: AbortSignal) => T | Promise<T>;
   logErrors: boolean | ((error: string) => void);
   refreshPolicy: {
     intervalMs: number;
@@ -118,7 +118,7 @@ export interface RegisterNodeConfig<T> {
   /**
    * The execution function called periodically. Receives an AbortSignal to handle cancellations.
    */
-  run: (signal: AbortSignal) => T | Promise<T>;
+  run: (signal?: AbortSignal) => T | Promise<T>;
 
   /**
    * How errors should be handled. Can be true (logs to stderr), false (ignores), or a custom callback function.

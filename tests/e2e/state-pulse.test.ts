@@ -5,7 +5,7 @@ import type { RegisterNodeConfig, PersistenceAdapter } from "../../src/types.js"
 
 function makeNode<T>(
   key: string,
-  run: (signal: AbortSignal) => T | Promise<T>,
+  run: (signal?: AbortSignal) => T | Promise<T>,
   overrides: Partial<RegisterNodeConfig<T>> = {},
 ): RegisterNodeConfig<T> {
   return {
